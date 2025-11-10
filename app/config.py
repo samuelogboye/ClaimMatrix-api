@@ -39,8 +39,8 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
 
     # JWT Authentication settings
-    JWT_SECRET_KEY: str = "your-secret-key-change-this-in-production"
-    JWT_ALGORITHM: str = "HS256"
+    JWT_SECRET_KEY: str
+    JWT_ALGORITHM: str
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
 
