@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import init_db, close_db, get_db
-from app.api import users, auth
+from app.api import users, auth, claims
 
 
 @asynccontextmanager
@@ -116,6 +116,7 @@ async def root():
 # Include routers
 app.include_router(auth.router, prefix=settings.API_PREFIX)
 app.include_router(users.router, prefix=settings.API_PREFIX)
+app.include_router(claims.router, prefix=settings.API_PREFIX)
 
 
 if __name__ == "__main__":
