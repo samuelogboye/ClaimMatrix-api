@@ -12,6 +12,7 @@ from app.services.claim_service import ClaimService
 from app.services.audit_engine_service import AuditEngineService
 from app.schemas.claim import ClaimCreate
 from app.utils.logging_config import get_logger
+from app.utils.file_validation import cleanup_temp_file
 
 logger = get_logger(__name__)
 
@@ -170,6 +171,8 @@ async def process_claims_csv_async(file_path: str) -> Dict[str, Any]:
         }
     finally:
         await session.close()
+        # Clean up temporary file after processing
+        cleanup_temp_file(file_path)
 
     return {
         "status": "success",
@@ -179,40 +182,86 @@ async def process_claims_csv_async(file_path: str) -> Dict[str, Any]:
     }
 
 
-@celery_app.task(name="app.tasks.claim_tasks.process_claims_csv")
-def process_claims_csv(file_path: str) -> Dict[str, Any]:
+@celery_app.task(
+    name="app.tasks.claim_tasks.process_claims_csv",
+    bind=True,  # Bind task instance as first argument
+    max_retries=3,  # Maximum number of retries
+    default_retry_delay=300,  # 5 minutes between retries
+    autoretry_for=(Exception,),  # Retry on any exception
+    retry_backoff=True,  # Exponential backoff
+    retry_backoff_max=3600,  # Maximum backoff of 1 hour
+    retry_jitter=True,  # Add random jitter to prevent thundering herd
+)
+def process_claims_csv(self, file_path: str) -> Dict[str, Any]:
     """
-    Celery task to process claims CSV file.
+    Celery task to process claims CSV file with automatic retries.
 
     Args:
+        self: Task instance (bound)
         file_path: Path to the CSV file to process
 
     Returns:
         Dictionary with processing results
     """
-    logger.info(f"Celery task started: process_claims_csv - {file_path}")
-
-    # Run the async function in an event loop
-    loop = asyncio.get_event_loop()
-    result = loop.run_until_complete(process_claims_csv_async(file_path))
-
     logger.info(
-        f"Celery task completed: process_claims_csv",
-        extra={"extra_fields": {"file_path": file_path, "status": result.get("status")}}
+        f"Celery task started: process_claims_csv - {file_path}",
+        extra={"extra_fields": {"task_id": self.request.id, "retries": self.request.retries}}
     )
 
-    return result
+    try:
+        # Run the async function in an event loop
+        loop = asyncio.get_event_loop()
+        result = loop.run_until_complete(process_claims_csv_async(file_path))
+
+        logger.info(
+            f"Celery task completed: process_claims_csv",
+            extra={"extra_fields": {
+                "file_path": file_path,
+                "status": result.get("status"),
+                "task_id": self.request.id
+            }}
+        )
+
+        return result
+
+    except Exception as exc:
+        logger.error(
+            f"Celery task failed: process_claims_csv - {str(exc)}",
+            exc_info=True,
+            extra={"extra_fields": {
+                "file_path": file_path,
+                "task_id": self.request.id,
+                "retries": self.request.retries
+            }}
+        )
+        # Re-raise to trigger automatic retry
+        raise
 
 
-@celery_app.task(name="app.tasks.claim_tasks.run_ml_audit")
-def run_ml_audit() -> Dict[str, Any]:
+@celery_app.task(
+    name="app.tasks.claim_tasks.run_ml_audit",
+    bind=True,  # Bind task instance
+    max_retries=2,  # Retry up to 2 times for ML tasks
+    default_retry_delay=600,  # 10 minutes between retries
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=7200,  # Maximum 2 hours backoff
+    retry_jitter=True,
+)
+def run_ml_audit(self) -> Dict[str, Any]:
     """
-    Celery task to run ML-based anomaly detection on all claims.
+    Celery task to run ML-based anomaly detection on all claims with automatic retries.
+
+    Args:
+        self: Task instance (bound)
 
     Returns:
         Dictionary with audit results
     """
-    logger.info("Celery task started: run_ml_audit (ML anomaly detection)")
+    logger.info(
+        "Celery task started: run_ml_audit (ML anomaly detection)",
+        extra={"extra_fields": {"task_id": self.request.id, "retries": self.request.retries}}
+    )
 
     async def run_ml_audit_async():
         session = get_async_session()
