@@ -14,6 +14,7 @@ from app.schemas.claim import ClaimCreate, ClaimResponse
 from app.tasks.claim_tasks import process_claims_csv
 from app.utils.logging_config import get_logger
 from app.utils.rate_limit import limiter
+from app.utils.file_validation import save_upload_file_safely
 from app.config import settings
 
 router = APIRouter(prefix="/claims", tags=["claims"])
@@ -53,37 +54,11 @@ async def upload_claims(
         extra={"extra_fields": {"filename": file.filename, "user_id": current_user.id}}
     )
 
-    # Validate file type
-    if not file.filename.endswith(".csv"):
-        logger.warning(
-            f"Invalid file type uploaded: {file.filename}",
-            extra={"extra_fields": {"filename": file.filename, "user_id": current_user.id}}
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only CSV files are accepted",
-        )
-
-    # Save uploaded file to temporary location
+    # Validate and save file with comprehensive checks
     try:
-        # Create temporary file
-        with tempfile.NamedTemporaryFile(
-            mode="wb", delete=False, suffix=".csv"
-        ) as tmp_file:
-            # Read and write file content
-            content = await file.read()
-            file_size = len(content)
-            tmp_file.write(content)
-            tmp_file_path = tmp_file.name
-
-        logger.info(
-            f"Claims file saved to temporary location: {tmp_file_path}",
-            extra={"extra_fields": {
-                "filename": file.filename,
-                "file_size_bytes": file_size,
-                "tmp_path": tmp_file_path,
-                "user_id": current_user.id
-            }}
+        tmp_file_path = await save_upload_file_safely(
+            upload_file=file,
+            validate_content=True  # Validates CSV structure
         )
 
         # Queue the processing task
@@ -111,10 +86,7 @@ async def upload_claims(
             exc_info=True,
             extra={"extra_fields": {"filename": file.filename, "user_id": current_user.id}}
         )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload file: {str(e)}",
-        )
+        raise
 
 
 @router.get("/flagged", response_model=List[dict])
