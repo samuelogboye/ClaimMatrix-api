@@ -9,20 +9,23 @@ from sqlalchemy.orm import declarative_base
 
 from app.config import settings
 
-# Create async engine with connection pooling and timeouts
+# Create async engine with optimized connection pooling and timeouts
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DATABASE_ECHO,
     future=True,
     pool_pre_ping=True,  # Verify connections before using them
-    pool_size=10,  # Number of connections to maintain in pool
-    max_overflow=20,  # Additional connections above pool_size
+    pool_size=20,  # Number of connections to maintain in pool (increased for production)
+    max_overflow=40,  # Additional connections above pool_size (increased for spikes)
     pool_recycle=3600,  # Recycle connections after 1 hour
+    pool_timeout=30,  # Timeout for getting connection from pool
     connect_args={
         "timeout": settings.DATABASE_QUERY_TIMEOUT,  # Connection timeout
         "command_timeout": settings.DATABASE_QUERY_TIMEOUT,  # Query timeout
         "server_settings": {
             "application_name": settings.APP_NAME,
+            "jit": "on",  # Enable PostgreSQL JIT compilation
+            "statement_timeout": f"{settings.DATABASE_QUERY_TIMEOUT * 1000}",  # Statement timeout in ms
         },
     },
 )
