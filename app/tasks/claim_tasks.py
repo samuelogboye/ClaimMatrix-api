@@ -11,6 +11,9 @@ from app.config import settings
 from app.services.claim_service import ClaimService
 from app.services.audit_engine_service import AuditEngineService
 from app.schemas.claim import ClaimCreate
+from app.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def get_async_session() -> AsyncSession:
@@ -36,8 +39,27 @@ async def process_claims_csv_async(file_path: str) -> Dict[str, Any]:
     Returns:
         Dictionary with processing results
     """
-    # Read CSV file
-    df = pd.read_csv(file_path)
+    logger.info(f"Starting claims CSV processing: {file_path}")
+
+    try:
+        # Read CSV file
+        df = pd.read_csv(file_path)
+        logger.info(
+            f"CSV file loaded successfully",
+            extra={"extra_fields": {"file_path": file_path, "row_count": len(df)}}
+        )
+    except Exception as e:
+        logger.error(
+            f"Failed to read CSV file: {str(e)}",
+            exc_info=True,
+            extra={"extra_fields": {"file_path": file_path}}
+        )
+        return {
+            "status": "error",
+            "message": f"Failed to read CSV file: {str(e)}",
+            "records_ingested": 0,
+            "records_audited": 0,
+        }
 
     # Validate required columns
     required_columns = [
@@ -51,6 +73,10 @@ async def process_claims_csv_async(file_path: str) -> Dict[str, Any]:
 
     missing_columns = [col for col in required_columns if col not in df.columns]
     if missing_columns:
+        logger.error(
+            f"CSV validation failed - missing columns: {missing_columns}",
+            extra={"extra_fields": {"file_path": file_path, "missing_columns": missing_columns}}
+        )
         return {
             "status": "error",
             "message": f"Missing required columns: {', '.join(missing_columns)}",
@@ -114,7 +140,26 @@ async def process_claims_csv_async(file_path: str) -> Dict[str, Any]:
 
         await session.commit()
 
+        logger.info(
+            f"Claims CSV processing completed successfully",
+            extra={"extra_fields": {
+                "file_path": file_path,
+                "records_ingested": records_ingested,
+                "records_audited": records_audited,
+                "error_count": len(errors)
+            }}
+        )
+
     except Exception as e:
+        logger.error(
+            f"Claims CSV processing failed: {str(e)}",
+            exc_info=True,
+            extra={"extra_fields": {
+                "file_path": file_path,
+                "records_ingested": records_ingested,
+                "records_audited": records_audited
+            }}
+        )
         await session.rollback()
         return {
             "status": "error",
@@ -145,9 +190,17 @@ def process_claims_csv(file_path: str) -> Dict[str, Any]:
     Returns:
         Dictionary with processing results
     """
+    logger.info(f"Celery task started: process_claims_csv - {file_path}")
+
     # Run the async function in an event loop
     loop = asyncio.get_event_loop()
     result = loop.run_until_complete(process_claims_csv_async(file_path))
+
+    logger.info(
+        f"Celery task completed: process_claims_csv",
+        extra={"extra_fields": {"file_path": file_path, "status": result.get("status")}}
+    )
+
     return result
 
 
@@ -159,15 +212,23 @@ def run_ml_audit() -> Dict[str, Any]:
     Returns:
         Dictionary with audit results
     """
+    logger.info("Celery task started: run_ml_audit (ML anomaly detection)")
 
     async def run_ml_audit_async():
         session = get_async_session()
         audit_service = AuditEngineService(session)
 
         try:
+            logger.info("Starting ML anomaly detection on claims")
+
             # Run ML anomaly detection
             anomalous_claims = await audit_service.run_ml_anomaly_detection(
                 skip=0, limit=10000
+            )
+
+            logger.info(
+                f"ML anomaly detection completed",
+                extra={"extra_fields": {"anomalies_found": len(anomalous_claims)}}
             )
 
             audited_count = 0
@@ -183,6 +244,14 @@ def run_ml_audit() -> Dict[str, Any]:
 
             await session.commit()
 
+            logger.info(
+                "ML audit task completed successfully",
+                extra={"extra_fields": {
+                    "anomalies_detected": len(anomalous_claims),
+                    "records_audited": audited_count
+                }}
+            )
+
             return {
                 "status": "success",
                 "anomalies_detected": len(anomalous_claims),
@@ -190,6 +259,10 @@ def run_ml_audit() -> Dict[str, Any]:
             }
 
         except Exception as e:
+            logger.error(
+                f"ML audit task failed: {str(e)}",
+                exc_info=True
+            )
             await session.rollback()
             return {
                 "status": "error",
@@ -201,4 +274,10 @@ def run_ml_audit() -> Dict[str, Any]:
 
     loop = asyncio.get_event_loop()
     result = loop.run_until_complete(run_ml_audit_async())
+
+    logger.info(
+        f"Celery task completed: run_ml_audit",
+        extra={"extra_fields": {"status": result.get("status")}}
+    )
+
     return result
