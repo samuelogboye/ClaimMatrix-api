@@ -6,18 +6,23 @@ from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status,
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.dependencies.auth import get_current_user
+from app.models.user import User
 from app.services.claim_service import ClaimService
 from app.services.audit_result_service import AuditResultService
 from app.schemas.claim import ClaimCreate, ClaimResponse
 from app.tasks.claim_tasks import process_claims_csv
+from app.utils.logging_config import get_logger
 
 router = APIRouter(prefix="/claims", tags=["claims"])
+logger = get_logger(__name__)
 
 
 @router.post("/upload")
 async def upload_claims(
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Upload CSV file of claims for processing.
@@ -39,8 +44,17 @@ async def upload_claims(
     Returns:
         Upload status and task information
     """
+    logger.info(
+        f"Claims file upload initiated by user {current_user.email}",
+        extra={"extra_fields": {"filename": file.filename, "user_id": current_user.id}}
+    )
+
     # Validate file type
     if not file.filename.endswith(".csv"):
+        logger.warning(
+            f"Invalid file type uploaded: {file.filename}",
+            extra={"extra_fields": {"filename": file.filename, "user_id": current_user.id}}
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Only CSV files are accepted",
@@ -54,11 +68,31 @@ async def upload_claims(
         ) as tmp_file:
             # Read and write file content
             content = await file.read()
+            file_size = len(content)
             tmp_file.write(content)
             tmp_file_path = tmp_file.name
 
+        logger.info(
+            f"Claims file saved to temporary location: {tmp_file_path}",
+            extra={"extra_fields": {
+                "filename": file.filename,
+                "file_size_bytes": file_size,
+                "tmp_path": tmp_file_path,
+                "user_id": current_user.id
+            }}
+        )
+
         # Queue the processing task
         task = process_claims_csv.delay(tmp_file_path)
+
+        logger.info(
+            f"Claims processing task queued: {task.id}",
+            extra={"extra_fields": {
+                "task_id": task.id,
+                "filename": file.filename,
+                "user_id": current_user.id
+            }}
+        )
 
         return {
             "status": "accepted",
@@ -68,6 +102,11 @@ async def upload_claims(
         }
 
     except Exception as e:
+        logger.error(
+            f"Failed to upload claims file: {str(e)}",
+            exc_info=True,
+            extra={"extra_fields": {"filename": file.filename, "user_id": current_user.id}}
+        )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to upload file: {str(e)}",
@@ -84,6 +123,7 @@ async def get_flagged_claims(
         default=100, ge=1, le=1000, description="Maximum number of records to return"
     ),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get flagged/suspicious claims based on audit results.
@@ -140,6 +180,7 @@ async def get_flagged_claims(
 async def create_claim(
     claim_data: ClaimCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Create a single claim manually.
@@ -162,6 +203,7 @@ async def get_all_claims(
         default=100, ge=1, le=1000, description="Maximum number of records to return"
     ),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get all claims with pagination.
@@ -184,6 +226,7 @@ async def get_claims_by_member(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get all claims for a specific member.
@@ -209,6 +252,7 @@ async def get_claims_by_provider(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=100, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get all claims for a specific provider.
@@ -232,6 +276,7 @@ async def get_claims_by_provider(
 async def get_claim_by_claim_id(
     claim_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Get a specific claim by claim_id.
