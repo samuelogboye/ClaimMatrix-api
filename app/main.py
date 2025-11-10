@@ -3,14 +3,26 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
+from pydantic import ValidationError
 
 from app.config import settings
 from app.database import init_db, close_db, get_db
 from app.api import users, auth, claims
 from app.middleware import LoggingMiddleware
 from app.utils.logging_config import setup_logging, get_logger
+from app.exceptions import ClaimMatrixException
+from app.exception_handlers import (
+    claimmatrix_exception_handler,
+    http_exception_handler,
+    validation_exception_handler,
+    sqlalchemy_exception_handler,
+    generic_exception_handler,
+)
 
 # Initialize logging
 setup_logging()
@@ -52,6 +64,16 @@ app = FastAPI(
     openapi_url="/openapi.json",
     lifespan=lifespan,
 )
+
+# Register global exception handlers
+app.add_exception_handler(ClaimMatrixException, claimmatrix_exception_handler)
+app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(ValidationError, validation_exception_handler)
+app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
+app.add_exception_handler(Exception, generic_exception_handler)
+
+logger.info("Global exception handlers registered")
 
 # Configure CORS
 app.add_middleware(
