@@ -37,6 +37,13 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
     LOG_JSON_FORMAT: bool = False  # True for JSON logs (recommended for production)
 
+    # Rate Limiting settings
+    RATE_LIMIT_ENABLED: bool = True  # Enable/disable rate limiting
+    RATE_LIMIT_DEFAULT: str = "100/minute"  # Default rate limit for all endpoints
+    RATE_LIMIT_AUTH: str = "5/minute"  # Rate limit for authentication endpoints
+    RATE_LIMIT_UPLOAD: str = "10/hour"  # Rate limit for file upload endpoints
+    RATE_LIMIT_STORAGE_URL: str = "redis://localhost:6378/1"  # Redis for rate limit storage
+
     # CORS settings
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:8001"
 
