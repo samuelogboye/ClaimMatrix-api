@@ -1,4 +1,5 @@
 # ClaimMatrix-api
+
 An AI-powered medical claims audit engine for self-insured employers and health plans.
 
 ClaimMatrix automatically audits medical claims post-payment, identifies hard-to-catch billing errors, and provides defensible audit results to support provider disputes, ERISA fiduciary compliance, and cost recovery.  
@@ -7,12 +8,13 @@ Built using **FastAPI, PostgreSQL, Docker, Pandas, and scikit-learn**.
 ---
 
 ## 🚀 Key Features
+
 - **100% Claim Auditing** — No sampling. Every claim is analyzed.
 - **Hybrid Audit Engine** — Rule-based checks + ML anomaly detection.
 - **Billing Error Detection**
-  - Duplicate submissions  
-  - Upcoding & unbundling  
-  - Price outliers vs historical norms  
+  - Duplicate submissions
+  - Upcoding & unbundling
+  - Price outliers vs historical norms
   - Missing 501(r) financial assistance screening
 - **Secure API** — Claims ingestion + audit results over REST.
 - **PostgreSQL Storage** — Durable audit logs for compliance.
@@ -21,28 +23,32 @@ Built using **FastAPI, PostgreSQL, Docker, Pandas, and scikit-learn**.
 ---
 
 ## 🧩 System Architecture
+
 TPA → FastAPI → PostgreSQL → Audit Engine (Rules + IsolationForest) → Flagged Claims API
 
 ## 🛠 Tech Stack
-| Component | Technology |
-|----------|------------|
-| API Layer | FastAPI |
-| Database | PostgreSQL |
-| ML / Analytics | Pandas, scikit-learn |
+
+| Component        | Technology              |
+| ---------------- | ----------------------- |
+| API Layer        | FastAPI                 |
+| Database         | PostgreSQL              |
+| ML / Analytics   | Pandas, scikit-learn    |
 | Containerization | Docker & Docker Compose |
-| Auth  | JWT, Role-based access |
+| Auth             | JWT, Role-based access  |
 
 ---
 
 ## 🔧 Installation
 
 ### ✅ Clone Repository
+
 ```bash
 git clone https://github.com/samuelogboye/ClaimMatrix-api.git
 cd ClaimMatrix-api
 ```
 
 ✅ Create Environment & Install Requirements
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -55,10 +61,9 @@ docker compose up --build
 
 This will start:
 
-FastAPI service → localhost:8000
+FastAPI service → localhost:8001
 
-PostgreSQL database → localhost:5432
-
+PostgreSQL database → localhost:5433
 
 🚀 Running the API
 
@@ -66,22 +71,23 @@ Start the backend locally:
 
 uvicorn app.main:app --reload
 
-
 Open API docs (Swagger):
 
-http://localhost:8000/docs
+http://localhost:8001/docs
 
 📥 Claims Ingestion API
 POST /claims/upload
 
 Upload CSV of claims:
 Request
+
 ```bash
-curl -X POST "http://localhost:8000/claims/upload" \
+curl -X POST "http://localhost:8001/claims/upload" \
      -F "file=@data/sample_claims.csv"
 ```
 
 Response
+
 ```json
 {
   "status": "accepted",
@@ -91,11 +97,13 @@ Response
 
 🔎 Get Flagged / Suspicious Claims
 GET /claims/flagged
+
 ```bash
-curl "http://localhost:8000/claims/flagged"
+curl "http://localhost:8001/claims/flagged"
 ```
 
 Response
+
 ```json
 [
   {
@@ -111,6 +119,7 @@ Response
 ```
 
 ### 🧠 How the Audit Engine Works
+
 ✅ Rule-Based Detection
 
 - Duplicate claims
@@ -130,11 +139,13 @@ Response
 - Higher score → more likely fraudulent or erroneous
 
 🗄 Database Schema (PostgreSQL)
+
 ## 🗄 Database Schema (PostgreSQL)
 
 ### **claims**
+
 | Field           | Type      |
-|-----------------|-----------|
+| --------------- | --------- |
 | id              | UUID      |
 | claim_id        | TEXT      |
 | member_id       | TEXT      |
@@ -145,25 +156,27 @@ Response
 | created_at      | TIMESTAMP |
 
 ### **audit_results**
-| Field             | Type      |
-|------------------|-----------|
-| id               | UUID      |
-| claim_id (FK)    | UUID      |
-| issues_found     | JSONB     |
-| suspicion_score  | NUMERIC   |
-| recommended_action | TEXT    |
-| audit_timestamp  | TIMESTAMP |
 
+| Field              | Type      |
+| ------------------ | --------- |
+| id                 | UUID      |
+| claim_id (FK)      | UUID      |
+| issues_found       | JSONB     |
+| suspicion_score    | NUMERIC   |
+| recommended_action | TEXT      |
+| audit_timestamp    | TIMESTAMP |
 
 ### ✅ Future Roadmap
-Feature	Status
-JWT authentication	Planned
-Provider appeals portal	Planned
-Real-time streaming ingestion (Kafka / Kinesis)	Planned
-Dashboard for savings + provider patterns	Planned
-Automatic medical record retrieval	Future
+
+Feature Status
+JWT authentication Planned
+Provider appeals portal Planned
+Real-time streaming ingestion (Kafka / Kinesis) Planned
+Dashboard for savings + provider patterns Planned
+Automatic medical record retrieval Future
 
 ### 🧪 Testing
+
 pytest -q
 
 ### ✅ License
