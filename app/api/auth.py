@@ -1,11 +1,13 @@
 """Authentication API endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.schemas.auth import UserRegister, UserLogin, Token
 from app.schemas.user import UserResponse
 from app.services.auth_service import AuthService
+from app.utils.rate_limit import limiter
+from app.config import settings
 
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -18,7 +20,9 @@ router = APIRouter(prefix="/auth", tags=["authentication"])
     summary="Register a new user",
     description="Create a new user account with email and password.",
 )
+@limiter.limit(settings.RATE_LIMIT_AUTH)
 async def register(
+    request: Request,
     user_data: UserRegister,
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
@@ -46,7 +50,9 @@ async def register(
     summary="Login user",
     description="Authenticate user and return JWT access token.",
 )
+@limiter.limit(settings.RATE_LIMIT_AUTH)
 async def login(
+    request: Request,
     login_data: UserLogin,
     db: AsyncSession = Depends(get_db),
 ) -> Token:
