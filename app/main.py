@@ -9,6 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import init_db, close_db, get_db
 from app.api import users, auth, claims
+from app.middleware import LoggingMiddleware
+from app.utils.logging_config import setup_logging, get_logger
+
+# Initialize logging
+setup_logging()
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
@@ -20,12 +26,20 @@ async def lifespan(app: FastAPI):
         app: FastAPI application instance
     """
     # Startup
+    logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
+    logger.info(f"Environment: {settings.ENVIRONMENT}")
+    logger.info(f"Debug mode: {settings.DEBUG}")
+
     # Note: Database tables should be created via Alembic migrations
     # init_db() is only for development/testing
     # await init_db()
+
     yield
+
     # Shutdown
+    logger.info(f"Shutting down {settings.APP_NAME}")
     await close_db()
+    logger.info("Database connections closed")
 
 
 # Create FastAPI application
@@ -48,6 +62,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Add request/response logging middleware
+app.add_middleware(LoggingMiddleware)
+
 
 # Health check endpoint
 @app.get("/health", tags=["health"])
@@ -65,6 +82,7 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         "status": "healthy",
         "app_name": settings.APP_NAME,
         "version": settings.APP_VERSION,
+        "environment": settings.ENVIRONMENT,
         "database": {
             "connected": False,
             "status": "unknown"
@@ -80,6 +98,8 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         health_status["database"]["connected"] = True
         health_status["database"]["status"] = "healthy"
 
+        logger.debug("Health check passed - database connection healthy")
+
         return JSONResponse(
             status_code=200,
             content=health_status
@@ -89,6 +109,11 @@ async def health_check(db: AsyncSession = Depends(get_db)):
         health_status["status"] = "unhealthy"
         health_status["database"]["connected"] = False
         health_status["database"]["status"] = f"error: {str(e)}"
+
+        logger.error(
+            f"Health check failed - database connection error: {str(e)}",
+            exc_info=True
+        )
 
         return JSONResponse(
             status_code=503,
