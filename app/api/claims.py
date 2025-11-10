@@ -2,7 +2,7 @@
 import os
 import tempfile
 from typing import List
-from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status, Query
+from fastapi import APIRouter, Depends, File, UploadFile, HTTPException, status, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -13,13 +13,17 @@ from app.services.audit_result_service import AuditResultService
 from app.schemas.claim import ClaimCreate, ClaimResponse
 from app.tasks.claim_tasks import process_claims_csv
 from app.utils.logging_config import get_logger
+from app.utils.rate_limit import limiter
+from app.config import settings
 
 router = APIRouter(prefix="/claims", tags=["claims"])
 logger = get_logger(__name__)
 
 
 @router.post("/upload")
+@limiter.limit(settings.RATE_LIMIT_UPLOAD)
 async def upload_claims(
+    request: Request,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
