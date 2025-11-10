@@ -15,6 +15,7 @@ from app.database import init_db, close_db, get_db
 from app.api import users, auth, claims
 from app.middleware import LoggingMiddleware
 from app.utils.logging_config import setup_logging, get_logger
+from app.utils.rate_limit import limiter
 from app.exceptions import ClaimMatrixException
 from app.exception_handlers import (
     claimmatrix_exception_handler,
@@ -23,6 +24,8 @@ from app.exception_handlers import (
     sqlalchemy_exception_handler,
     generic_exception_handler,
 )
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 # Initialize logging
 setup_logging()
@@ -65,7 +68,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Add rate limiter state
+app.state.limiter = limiter
+
 # Register global exception handlers
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_exception_handler(ClaimMatrixException, claimmatrix_exception_handler)
 app.add_exception_handler(StarletteHTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
@@ -74,6 +81,8 @@ app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
 
 logger.info("Global exception handlers registered")
+if settings.RATE_LIMIT_ENABLED:
+    logger.info(f"Rate limiting enabled - Default: {settings.RATE_LIMIT_DEFAULT}")
 
 # Configure CORS
 app.add_middleware(
