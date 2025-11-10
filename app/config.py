@@ -44,6 +44,17 @@ class Settings(BaseSettings):
     RATE_LIMIT_UPLOAD: str = "10/hour"  # Rate limit for file upload endpoints
     RATE_LIMIT_STORAGE_URL: str = "redis://localhost:6378/1"  # Redis for rate limit storage
 
+    # File Upload settings
+    MAX_UPLOAD_SIZE_MB: int = 50  # Maximum file upload size in MB
+    ALLOWED_UPLOAD_EXTENSIONS: str = ".csv"  # Comma-separated list of allowed extensions
+    TEMP_FILE_RETENTION_HOURS: int = 24  # Hours to keep temporary files before cleanup
+
+    # Timeout settings (in seconds)
+    REQUEST_TIMEOUT: int = 30  # HTTP request timeout
+    DATABASE_QUERY_TIMEOUT: int = 30  # Database query timeout
+    CELERY_TASK_TIME_LIMIT: int = 1800  # 30 minutes
+    CELERY_TASK_SOFT_TIME_LIMIT: int = 1500  # 25 minutes
+
     # CORS settings
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:8001"
 
