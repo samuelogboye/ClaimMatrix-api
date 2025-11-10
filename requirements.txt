@@ -29,6 +29,9 @@ bcrypt==4.0.1
 python-dateutil==2.8.2
 pydantic[email]
 
+# Rate Limiting
+slowapi==0.1.9
+
 # ML and Data Processing
 pandas==2.1.4
 scikit-learn==1.3.2
