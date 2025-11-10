@@ -1,5 +1,6 @@
 """FastAPI application entry point."""
 from contextlib import asynccontextmanager
+from datetime import datetime
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -101,55 +102,99 @@ app.add_middleware(LoggingMiddleware)
 @app.get("/health", tags=["health"])
 async def health_check(db: AsyncSession = Depends(get_db)):
     """
-    Health check endpoint with database connectivity check.
+    Comprehensive health check endpoint.
+
+    Checks:
+    - Database connectivity
+    - Redis connectivity
+    - Celery worker availability
 
     Args:
         db: Database session
 
     Returns:
-        Health status including database connectivity
+        Health status including all system components
     """
+    import redis
+    from celery import Celery
+
     health_status = {
         "status": "healthy",
         "app_name": settings.APP_NAME,
         "version": settings.APP_VERSION,
         "environment": settings.ENVIRONMENT,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
         "database": {
             "connected": False,
+            "status": "unknown"
+        },
+        "redis": {
+            "connected": False,
+            "status": "unknown"
+        },
+        "celery": {
+            "workers_available": False,
             "status": "unknown"
         }
     }
 
     # Check database connectivity
     try:
-        # Execute a simple query to verify database connection
         result = await db.execute(text("SELECT 1"))
         result.scalar()
-
         health_status["database"]["connected"] = True
         health_status["database"]["status"] = "healthy"
-
-        logger.debug("Health check passed - database connection healthy")
-
-        return JSONResponse(
-            status_code=200,
-            content=health_status
-        )
     except Exception as e:
-        # Database connection failed
         health_status["status"] = "unhealthy"
         health_status["database"]["connected"] = False
         health_status["database"]["status"] = f"error: {str(e)}"
+        logger.error(f"Health check - database error: {str(e)}")
 
-        logger.error(
-            f"Health check failed - database connection error: {str(e)}",
-            exc_info=True
-        )
+    # Check Redis connectivity
+    try:
+        redis_client = redis.from_url(settings.REDIS_URL, socket_connect_timeout=2)
+        redis_client.ping()
+        health_status["redis"]["connected"] = True
+        health_status["redis"]["status"] = "healthy"
+        redis_client.close()
+    except Exception as e:
+        health_status["status"] = "degraded"
+        health_status["redis"]["connected"] = False
+        health_status["redis"]["status"] = f"error: {str(e)}"
+        logger.warning(f"Health check - Redis error: {str(e)}")
 
-        return JSONResponse(
-            status_code=503,
-            content=health_status
-        )
+    # Check Celery workers
+    try:
+        from app.celery_app import celery_app
+        inspect = celery_app.control.inspect(timeout=2.0)
+        active_workers = inspect.active()
+        if active_workers and len(active_workers) > 0:
+            health_status["celery"]["workers_available"] = True
+            health_status["celery"]["status"] = "healthy"
+            health_status["celery"]["worker_count"] = len(active_workers)
+        else:
+            health_status["status"] = "degraded"
+            health_status["celery"]["workers_available"] = False
+            health_status["celery"]["status"] = "no workers available"
+    except Exception as e:
+        health_status["status"] = "degraded"
+        health_status["celery"]["workers_available"] = False
+        health_status["celery"]["status"] = f"error: {str(e)}"
+        logger.warning(f"Health check - Celery error: {str(e)}")
+
+    # Determine HTTP status code
+    status_code = 200
+    if health_status["status"] == "unhealthy":
+        status_code = 503
+    elif health_status["status"] == "degraded":
+        status_code = 200  # Still return 200 for degraded (database works)
+
+    logger.debug(f"Health check completed - status: {health_status['status']}")
+
+    return JSONResponse(
+        status_code=status_code,
+        content=health_status
+    )
 
 
 @app.get("/", tags=["root"])
@@ -183,4 +228,8 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=8001,
         reload=settings.DEBUG,
+        timeout_keep_alive=5,  # Keep-alive timeout
+        timeout_graceful_shutdown=30,  # Graceful shutdown timeout
+        limit_concurrency=1000,  # Maximum concurrent connections
+        limit_max_requests=10000,  # Restart worker after N requests (prevents memory leaks)
     )
