@@ -7,6 +7,9 @@ from fastapi import HTTPException, status
 from app.repositories.claim_repository import ClaimRepository
 from app.schemas.claim import ClaimCreate, ClaimResponse, ClaimUpdate
 from app.models.claim import Claim
+from app.utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class ClaimService:
@@ -30,24 +33,51 @@ class ClaimService:
         Raises:
             HTTPException: If claim_id already exists
         """
+        logger.info(
+            f"Creating claim: {claim_data.claim_id}",
+            extra={"extra_fields": {
+                "claim_id": claim_data.claim_id,
+                "member_id": claim_data.member_id,
+                "provider_id": claim_data.provider_id
+            }}
+        )
+
         # Check if claim_id already exists
         existing_claim = await self.repository.get_by_claim_id(claim_data.claim_id)
         if existing_claim:
+            logger.warning(
+                f"Duplicate claim_id detected: {claim_data.claim_id}",
+                extra={"extra_fields": {"claim_id": claim_data.claim_id}}
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Claim with claim_id '{claim_data.claim_id}' already exists",
             )
 
-        claim = await self.repository.create(
-            claim_id=claim_data.claim_id,
-            member_id=claim_data.member_id,
-            provider_id=claim_data.provider_id,
-            date_of_service=claim_data.date_of_service,
-            cpt_code=claim_data.cpt_code,
-            charge_amount=claim_data.charge_amount,
-        )
+        try:
+            claim = await self.repository.create(
+                claim_id=claim_data.claim_id,
+                member_id=claim_data.member_id,
+                provider_id=claim_data.provider_id,
+                date_of_service=claim_data.date_of_service,
+                cpt_code=claim_data.cpt_code,
+                charge_amount=claim_data.charge_amount,
+            )
 
-        await self.db.commit()
+            await self.db.commit()
+
+            logger.info(
+                f"Claim created successfully: {claim_data.claim_id}",
+                extra={"extra_fields": {"claim_id": claim_data.claim_id, "db_id": claim.id}}
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to create claim: {claim_data.claim_id} - {str(e)}",
+                exc_info=True,
+                extra={"extra_fields": {"claim_id": claim_data.claim_id}}
+            )
+            await self.db.rollback()
+            raise
         return await self.repository.to_response(claim)
 
     async def get_claim_by_id(self, claim_id: UUID) -> Optional[ClaimResponse]:
