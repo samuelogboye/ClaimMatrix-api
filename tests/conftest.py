@@ -8,7 +8,6 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import NullPool
 from httpx import AsyncClient
-from geoalchemy2.elements import WKTElement
 
 from app.database import Base
 from app.config import settings
