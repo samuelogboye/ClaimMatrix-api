@@ -56,6 +56,9 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - DEBUG=True
+      - SHARED_TEMP_DIR=/app/shared_temp
+    volumes:
+      - shared_temp:/app/shared_temp
     depends_on:
       db:
         condition: service_healthy
@@ -83,6 +86,9 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - DEBUG=True
+      - SHARED_TEMP_DIR=/app/shared_temp
+    volumes:
+      - shared_temp:/app/shared_temp
     command: celery -A app.celery_app worker --loglevel=info
     depends_on:
       db:
@@ -131,6 +137,8 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  shared_temp:
     driver: local
 
 networks:
