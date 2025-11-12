@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 50  # Maximum file upload size in MB
     ALLOWED_UPLOAD_EXTENSIONS: str = ".csv"  # Comma-separated list of allowed extensions
     TEMP_FILE_RETENTION_HOURS: int = 24  # Hours to keep temporary files before cleanup
+    SHARED_TEMP_DIR: str = "/tmp"  # Shared temporary directory for file uploads (overridden in Docker)
 
     # Timeout settings (in seconds)
     REQUEST_TIMEOUT: int = 30  # HTTP request timeout
