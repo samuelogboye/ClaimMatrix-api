@@ -153,13 +153,18 @@ async def save_upload_file_safely(
             details={"size_mb": file_size / (1024 * 1024), "max_size_mb": settings.MAX_UPLOAD_SIZE_MB}
         )
 
-    # Save to temporary file
+    # Save to temporary file in shared directory
     try:
+        # Create shared temp directory if it doesn't exist
+        shared_temp_dir = Path(settings.SHARED_TEMP_DIR)
+        shared_temp_dir.mkdir(parents=True, exist_ok=True)
+
         with tempfile.NamedTemporaryFile(
             mode="wb",
             delete=False,
             suffix=Path(filename).suffix,
-            prefix="upload_"
+            prefix="upload_",
+            dir=str(shared_temp_dir)  # Use shared directory
         ) as tmp_file:
             tmp_file.write(content)
             tmp_file_path = tmp_file.name
