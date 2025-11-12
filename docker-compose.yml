@@ -45,9 +45,10 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: claimmatrix_api
+    user: root
     command: >
-      sh -c "python -m alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8001"
+      sh -c "mkdir -p /app/shared_temp && chown -R appuser:appuser /app/shared_temp &&
+             su appuser -c 'python -m alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8001'"
     ports:
       - "8001:8001"
     environment:
@@ -80,6 +81,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: claimmatrix_celery_worker
+    user: root
     environment:
       - DATABASE_URL=postgresql+asyncpg://claim_matrix_user:claim_matrix_pass@db:5433/claim_matrix
       - REDIS_URL=redis://redis:6379/0
@@ -89,7 +91,9 @@ services:
       - SHARED_TEMP_DIR=/app/shared_temp
     volumes:
       - shared_temp:/app/shared_temp
-    command: celery -A app.celery_app worker --loglevel=info
+    command: >
+      sh -c "mkdir -p /app/shared_temp && chown -R appuser:appuser /app/shared_temp &&
+             su appuser -c 'celery -A app.celery_app worker --loglevel=info'"
     depends_on:
       db:
         condition: service_healthy
