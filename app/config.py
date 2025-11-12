@@ -20,11 +20,11 @@ class Settings(BaseSettings):
     DATABASE_ECHO: bool = False
 
     # Redis settings
-    REDIS_URL: str = "redis://localhost:6378/0"
+    REDIS_URL: str = "redis://redis:6379/0"
 
     # Celery settings
-    CELERY_BROKER_URL: str = "redis://localhost:6378/0"
-    CELERY_RESULT_BACKEND: str = "redis://localhost:6378/0"
+    CELERY_BROKER_URL: str = "redis://redis:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://redis:6379/0"
 
     # Application settings
     APP_NAME: str = "ClaimMatrix"
@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     RATE_LIMIT_DEFAULT: str = "100/minute"  # Default rate limit for all endpoints
     RATE_LIMIT_AUTH: str = "5/minute"  # Rate limit for authentication endpoints
     RATE_LIMIT_UPLOAD: str = "10/hour"  # Rate limit for file upload endpoints
-    RATE_LIMIT_STORAGE_URL: str = "redis://localhost:6378/1"  # Redis for rate limit storage
+    RATE_LIMIT_STORAGE_URL: str = "redis://redis:6379/1"  # Redis for rate limit storage
 
     # File Upload settings
     MAX_UPLOAD_SIZE_MB: int = 50  # Maximum file upload size in MB
