@@ -52,9 +52,9 @@ services:
       - "8001:8001"
     environment:
       - DATABASE_URL=postgresql+asyncpg://claim_matrix_user:claim_matrix_pass@db:5433/claim_matrix
-      - REDIS_URL=redis://redis:6378/0
-      - CELERY_BROKER_URL=redis://redis:6378/0
-      - CELERY_RESULT_BACKEND=redis://redis:6378/0
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - DEBUG=True
     depends_on:
       db:
@@ -73,9 +73,9 @@ services:
     container_name: claimmatrix_celery_worker
     environment:
       - DATABASE_URL=postgresql+asyncpg://claim_matrix_user:claim_matrix_pass@db:5433/claim_matrix
-      - REDIS_URL=redis://redis:6378/0
-      - CELERY_BROKER_URL=redis://redis:6378/0
-      - CELERY_RESULT_BACKEND=redis://redis:6378/0
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - DEBUG=True
     command: celery -A app.celery_app worker --loglevel=info
     depends_on:
@@ -95,9 +95,9 @@ services:
     container_name: claimmatrix_celery_beat
     environment:
       - DATABASE_URL=postgresql+asyncpg://claim_matrix_user:claim_matrix_pass@db:5433/claim_matrix
-      - REDIS_URL=redis://redis:6378/0
-      - CELERY_BROKER_URL=redis://redis:6378/0
-      - CELERY_RESULT_BACKEND=redis://redis:6378/0
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - DEBUG=True
     command: celery -A app.celery_app beat --loglevel=info
     depends_on:
