@@ -155,9 +155,11 @@ async def save_upload_file_safely(
 
     # Save to temporary file in shared directory
     try:
-        # Create shared temp directory if it doesn't exist
+        # Ensure shared temp directory exists
         shared_temp_dir = Path(settings.SHARED_TEMP_DIR)
-        shared_temp_dir.mkdir(parents=True, exist_ok=True)
+        if not shared_temp_dir.exists():
+            shared_temp_dir.mkdir(parents=True, exist_ok=True)
+            logger.warning(f"Created missing shared temp directory: {shared_temp_dir}")
 
         with tempfile.NamedTemporaryFile(
             mode="wb",
