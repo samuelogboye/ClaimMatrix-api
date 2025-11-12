@@ -25,6 +25,8 @@ WORKDIR /app
 # Install runtime dependencies only
 RUN apt-get update && apt-get install -y \
     libpq5 \
+    curl \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy globally installed dependencies from builder
@@ -45,9 +47,9 @@ ENV PATH=/usr/local/bin:$PATH
 # Expose port
 EXPOSE 8001
 
-# Health check
+# Health check - use curl instead of requests library
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8001/health')" || exit 1
+    CMD curl -f http://localhost:8001/health || exit 1
 
 # Run the application
 CMD ["sh", "-c", "python -m alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8001"]
