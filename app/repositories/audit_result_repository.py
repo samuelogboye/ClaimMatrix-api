@@ -211,6 +211,22 @@ class AuditResultRepository:
         )
         return result.scalar() or 0
 
+    async def count_flagged(self, min_suspicion_score: float = 0.7) -> int:
+        """
+        Count flagged audit results with suspicion score above threshold.
+
+        Args:
+            min_suspicion_score: Minimum suspicion score threshold
+
+        Returns:
+            Count of flagged audit results
+        """
+        result = await self.db.execute(
+            select(func.count(AuditResult.id))
+            .where(AuditResult.suspicion_score >= min_suspicion_score)
+        )
+        return result.scalar() or 0
+
     async def to_response(self, audit_result: AuditResult) -> AuditResultResponse:
         """
         Convert AuditResult model to AuditResultResponse schema.
