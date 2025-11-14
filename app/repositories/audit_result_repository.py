@@ -2,7 +2,7 @@
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from decimal import Decimal
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -174,6 +174,42 @@ class AuditResultRepository:
         await self.db.delete(audit_result)
         await self.db.flush()
         return True
+
+    async def count(self) -> int:
+        """
+        Get total count of audit results.
+
+        Returns:
+            Total number of audit results
+        """
+        result = await self.db.execute(
+            select(func.count(AuditResult.id))
+        )
+        return result.scalar() or 0
+
+    async def count_by_score(
+        self,
+        min_score: float = 0.0,
+        max_score: float = 1.0
+    ) -> int:
+        """
+        Count audit results within a score range.
+
+        Args:
+            min_score: Minimum suspicion score
+            max_score: Maximum suspicion score
+
+        Returns:
+            Count of audit results in the score range
+        """
+        result = await self.db.execute(
+            select(func.count(AuditResult.id))
+            .where(
+                AuditResult.suspicion_score >= min_score,
+                AuditResult.suspicion_score < max_score
+            )
+        )
+        return result.scalar() or 0
 
     async def to_response(self, audit_result: AuditResult) -> AuditResultResponse:
         """
