@@ -11,6 +11,7 @@ from app.models.user import User
 from app.services.claim_service import ClaimService
 from app.services.audit_result_service import AuditResultService
 from app.schemas.claim import ClaimCreate, ClaimResponse
+from app.schemas.pagination import PaginationParams, PaginatedResponse
 from app.tasks.claim_tasks import process_claims_csv
 from app.utils.logging_config import get_logger
 from app.utils.rate_limit import limiter
@@ -89,15 +90,13 @@ async def upload_claims(
         raise
 
 
-@router.get("/flagged", response_model=List[dict])
+@router.get("/flagged")
 async def get_flagged_claims(
     min_suspicion_score: float = Query(
         default=0.7, ge=0.0, le=1.0, description="Minimum suspicion score threshold"
     ),
-    skip: int = Query(default=0, ge=0, description="Number of records to skip"),
-    limit: int = Query(
-        default=100, ge=1, le=1000, description="Maximum number of records to return"
-    ),
+    page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Number of items per page"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -109,23 +108,29 @@ async def get_flagged_claims(
 
     Args:
         min_suspicion_score: Minimum suspicion score (0.0 to 1.0)
-        skip: Number of records to skip for pagination
-        limit: Maximum number of records to return
+        page: Page number (1-indexed)
+        page_size: Number of items per page (default: 20, max: 100)
         db: Database session
 
     Returns:
-        List of flagged claims with audit results
+        Paginated list of flagged claims with audit results
     """
     audit_service = AuditResultService(db)
     claim_service = ClaimService(db)
 
+    # Calculate pagination
+    pagination = PaginationParams(page=page, page_size=page_size)
+
+    # Get total count
+    total_count = await audit_service.repository.count_flagged(min_suspicion_score)
+
     # Get flagged audit results
     flagged_results = await audit_service.repository.get_flagged(
-        min_suspicion_score=min_suspicion_score, skip=skip, limit=limit
+        min_suspicion_score=min_suspicion_score, skip=pagination.skip, limit=pagination.limit
     )
 
     # Build response with claim and audit information
-    response = []
+    items = []
     for audit_result in flagged_results:
         # Get associated claim
         claim = await claim_service.repository.get_by_id(audit_result.claim_id)
@@ -134,7 +139,7 @@ async def get_flagged_claims(
             # Extract issues from JSONB field
             issues = audit_result.issues_found.get("issues", [])
 
-            response.append(
+            items.append(
                 {
                     "claim_id": claim.claim_id,
                     "member_id": claim.member_id,
@@ -149,7 +154,12 @@ async def get_flagged_claims(
                 }
             )
 
-    return response
+    return PaginatedResponse.create(
+        items=items,
+        total_items=total_count,
+        page=page,
+        page_size=page_size
+    )
 
 
 @router.post("/", response_model=ClaimResponse, status_code=status.HTTP_201_CREATED)
@@ -172,12 +182,10 @@ async def create_claim(
     return await claim_service.create_claim(claim_data)
 
 
-@router.get("/", response_model=List[ClaimResponse])
+@router.get("/")
 async def get_all_claims(
-    skip: int = Query(default=0, ge=0, description="Number of records to skip"),
-    limit: int = Query(
-        default=100, ge=1, le=1000, description="Maximum number of records to return"
-    ),
+    page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Number of items per page"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -185,22 +193,37 @@ async def get_all_claims(
     Get all claims with pagination.
 
     Args:
-        skip: Number of records to skip
-        limit: Maximum number of records to return
+        page: Page number (1-indexed)
+        page_size: Number of items per page (default: 20, max: 100)
         db: Database session
 
     Returns:
-        List of claims
+        Paginated list of claims
     """
     claim_service = ClaimService(db)
-    return await claim_service.get_all_claims(skip=skip, limit=limit)
+
+    # Calculate pagination
+    pagination = PaginationParams(page=page, page_size=page_size)
+
+    # Get total count
+    total_count = await claim_service.repository.count()
+
+    # Get claims
+    claims = await claim_service.get_all_claims(skip=pagination.skip, limit=pagination.limit)
+
+    return PaginatedResponse.create(
+        items=claims,
+        total_items=total_count,
+        page=page,
+        page_size=page_size
+    )
 
 
-@router.get("/member/{member_id}", response_model=List[ClaimResponse])
+@router.get("/member/{member_id}")
 async def get_claims_by_member(
     member_id: str,
-    skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=100, ge=1, le=1000),
+    page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Number of items per page"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -209,24 +232,39 @@ async def get_claims_by_member(
 
     Args:
         member_id: Member/patient identifier
-        skip: Number of records to skip
-        limit: Maximum number of records to return
+        page: Page number (1-indexed)
+        page_size: Number of items per page (default: 20, max: 100)
         db: Database session
 
     Returns:
-        List of claims for the member
+        Paginated list of claims for the member
     """
     claim_service = ClaimService(db)
-    return await claim_service.get_claims_by_member(
-        member_id=member_id, skip=skip, limit=limit
+
+    # Calculate pagination
+    pagination = PaginationParams(page=page, page_size=page_size)
+
+    # Get total count
+    total_count = await claim_service.repository.count_by_member_id(member_id)
+
+    # Get claims
+    claims = await claim_service.get_claims_by_member(
+        member_id=member_id, skip=pagination.skip, limit=pagination.limit
+    )
+
+    return PaginatedResponse.create(
+        items=claims,
+        total_items=total_count,
+        page=page,
+        page_size=page_size
     )
 
 
-@router.get("/provider/{provider_id}", response_model=List[ClaimResponse])
+@router.get("/provider/{provider_id}")
 async def get_claims_by_provider(
     provider_id: str,
-    skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=100, ge=1, le=1000),
+    page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Number of items per page"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -235,16 +273,31 @@ async def get_claims_by_provider(
 
     Args:
         provider_id: Healthcare provider identifier
-        skip: Number of records to skip
-        limit: Maximum number of records to return
+        page: Page number (1-indexed)
+        page_size: Number of items per page (default: 20, max: 100)
         db: Database session
 
     Returns:
-        List of claims for the provider
+        Paginated list of claims for the provider
     """
     claim_service = ClaimService(db)
-    return await claim_service.get_claims_by_provider(
-        provider_id=provider_id, skip=skip, limit=limit
+
+    # Calculate pagination
+    pagination = PaginationParams(page=page, page_size=page_size)
+
+    # Get total count
+    total_count = await claim_service.repository.count_by_provider_id(provider_id)
+
+    # Get claims
+    claims = await claim_service.get_claims_by_provider(
+        provider_id=provider_id, skip=pagination.skip, limit=pagination.limit
+    )
+
+    return PaginatedResponse.create(
+        items=claims,
+        total_items=total_count,
+        page=page,
+        page_size=page_size
     )
 
 
