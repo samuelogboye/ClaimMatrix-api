@@ -14,6 +14,11 @@ from app.schemas.audit_result import (
     AuditResultResponse,
     AuditResultUpdate,
 )
+from app.schemas.pagination import (
+    PaginationParams,
+    PaginationMeta,
+    PaginatedResponse,
+)
 
 __all__ = [
     # User schemas
@@ -28,4 +33,8 @@ __all__ = [
     "AuditResultCreate",
     "AuditResultResponse",
     "AuditResultUpdate",
+    # Pagination schemas
+    "PaginationParams",
+    "PaginationMeta",
+    "PaginatedResponse",
 ]
