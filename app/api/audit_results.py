@@ -12,7 +12,7 @@ from app.services.audit_engine_service import AuditEngineService
 from app.services.claim_service import ClaimService
 from app.tasks.claim_tasks import run_ml_audit
 from app.utils.logging_config import get_logger
-from app.middleware.rate_limiter import limiter
+from app.utils.rate_limit import limiter
 from app.config import settings
 
 logger = get_logger(__name__)
