@@ -14,7 +14,7 @@ from pydantic import ValidationError
 
 from app.config import settings
 from app.database import init_db, close_db, get_db
-from app.api import users, auth, claims
+from app.api import users, auth, claims, audit_results
 from app.middleware import LoggingMiddleware
 from app.utils.logging_config import setup_logging, get_logger
 from app.utils.rate_limit import limiter
@@ -222,6 +222,7 @@ async def root():
 app.include_router(auth.router, prefix=settings.API_PREFIX)
 app.include_router(users.router, prefix=settings.API_PREFIX)
 app.include_router(claims.router, prefix=settings.API_PREFIX)
+app.include_router(audit_results.router, prefix=settings.API_PREFIX)
 
 
 if __name__ == "__main__":
