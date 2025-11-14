@@ -3,7 +3,7 @@ from typing import Optional, List
 from uuid import UUID
 from datetime import date
 from decimal import Decimal
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.claim import Claim
@@ -201,6 +201,16 @@ class ClaimRepository:
         await self.db.delete(claim)
         await self.db.flush()
         return True
+
+    async def count(self) -> int:
+        """
+        Get total count of claims.
+
+        Returns:
+            Total number of claims
+        """
+        result = await self.db.execute(select(func.count(Claim.id)))
+        return result.scalar() or 0
 
     async def to_response(self, claim: Claim) -> ClaimResponse:
         """
