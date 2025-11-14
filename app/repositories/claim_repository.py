@@ -212,6 +212,36 @@ class ClaimRepository:
         result = await self.db.execute(select(func.count(Claim.id)))
         return result.scalar() or 0
 
+    async def count_by_member_id(self, member_id: str) -> int:
+        """
+        Get total count of claims for a specific member.
+
+        Args:
+            member_id: Member/patient identifier
+
+        Returns:
+            Total number of claims for the member
+        """
+        result = await self.db.execute(
+            select(func.count(Claim.id)).where(Claim.member_id == member_id)
+        )
+        return result.scalar() or 0
+
+    async def count_by_provider_id(self, provider_id: str) -> int:
+        """
+        Get total count of claims for a specific provider.
+
+        Args:
+            provider_id: Healthcare provider identifier
+
+        Returns:
+            Total number of claims for the provider
+        """
+        result = await self.db.execute(
+            select(func.count(Claim.id)).where(Claim.provider_id == provider_id)
+        )
+        return result.scalar() or 0
+
     async def to_response(self, claim: Claim) -> ClaimResponse:
         """
         Convert Claim model to ClaimResponse schema.
