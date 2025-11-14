@@ -10,6 +10,7 @@ from app.models.user import User
 from app.services.audit_result_service import AuditResultService
 from app.services.audit_engine_service import AuditEngineService
 from app.services.claim_service import ClaimService
+from app.schemas.pagination import PaginationParams, PaginatedResponse
 from app.tasks.claim_tasks import run_ml_audit
 from app.utils.logging_config import get_logger
 from app.utils.rate_limit import limiter
@@ -72,10 +73,8 @@ async def get_flagged_claims(
     min_suspicion_score: float = Query(
         default=0.7, ge=0.0, le=1.0, description="Minimum suspicion score threshold"
     ),
-    skip: int = Query(default=0, ge=0, description="Number of records to skip"),
-    limit: int = Query(
-        default=100, ge=1, le=1000, description="Maximum number of records to return"
-    ),
+    page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Number of items per page"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -87,32 +86,41 @@ async def get_flagged_claims(
 
     Args:
         min_suspicion_score: Minimum suspicion score (0.0 to 1.0)
-        skip: Number of records to skip for pagination
-        limit: Maximum number of records to return
+        page: Page number (1-indexed)
+        page_size: Number of items per page (default: 20, max: 100)
         db: Database session
         current_user: Authenticated user
 
     Returns:
-        List of flagged claims with audit results
+        Paginated list of flagged claims with audit results
     """
     audit_service = AuditResultService(db)
     claim_service = ClaimService(db)
 
+    # Calculate pagination
+    pagination = PaginationParams(page=page, page_size=page_size)
+
+    # Get total count
+    total_count = await audit_service.repository.count_flagged(min_suspicion_score)
+
     # Get flagged audit results
     flagged_results = await audit_service.repository.get_flagged(
-        min_suspicion_score=min_suspicion_score, skip=skip, limit=limit
+        min_suspicion_score=min_suspicion_score, skip=pagination.skip, limit=pagination.limit
     )
 
     logger.info(
-        f"Retrieved {len(flagged_results)} flagged claims",
+        f"Retrieved {len(flagged_results)} flagged claims (page {page} of {(total_count + page_size - 1) // page_size})",
         extra={"extra_fields": {
             "min_suspicion_score": min_suspicion_score,
+            "page": page,
+            "page_size": page_size,
+            "total_count": total_count,
             "user_id": current_user.id
         }}
     )
 
     # Build response with claim and audit information
-    response = []
+    items = []
     for audit_result in flagged_results:
         # Get associated claim
         claim = await claim_service.repository.get_by_id(audit_result.claim_id)
@@ -121,7 +129,7 @@ async def get_flagged_claims(
             # Extract issues from JSONB field
             issues = audit_result.issues_found.get("issues", [])
 
-            response.append({
+            items.append({
                 "claim_id": claim.claim_id,
                 "member_id": claim.member_id,
                 "provider_id": claim.provider_id,
@@ -134,7 +142,12 @@ async def get_flagged_claims(
                 "audit_timestamp": audit_result.audit_timestamp.isoformat(),
             })
 
-    return response
+    return PaginatedResponse.create(
+        items=items,
+        total_items=total_count,
+        page=page,
+        page_size=page_size
+    )
 
 
 @router.post("/ml-audit/trigger")
