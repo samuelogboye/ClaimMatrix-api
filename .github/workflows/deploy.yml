@@ -43,7 +43,7 @@ jobs:
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
           script: |
-            APP_DIR=/root/ClaimMatrix
+            APP_DIR=/root/ClaimMatrix-api
 
             echo "Navigating to app directory..."
             if [ ! -d "$APP_DIR" ]; then
